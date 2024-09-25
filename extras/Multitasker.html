@@ -1,0 +1,760 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multitasker.md</title>
+  <link rel="stylesheet" href="https://stackedit.io/style.css" />
+</head>
+
+<body class="stackedit">
+  <div class="stackedit__left">
+    <div class="stackedit__toc">
+      
+<ul>
+<li><a href="#multitasking-with-arduino">Multitasking with Arduino</a></li>
+<li><a href="#create-a-new-task">Create a New Task</a></li>
+<li><a href="#manual-switch-between-tasks">Manual Switch Between Tasks</a></li>
+<li><a href="#return-to-main-task-using-yield-function">Return to Main Task Using yield() Function</a></li>
+<li><a href="#how-to-create-and-destroy-a-task">How to Create and Destroy a Task</a></li>
+<li><a href="#multitasking-with-a-task-switcherscheduler">Multitasking with a Task Switcher/Scheduler</a></li>
+<li><a href="#alternative-task-for-task-switcher-instead-of-main">Alternative Task for Task Switcher Instead of main</a></li>
+<li><a href="#using-yield-and-delay-to-optimize-multitasking">Using yield() and delay() to Optimize Multitasking</a></li>
+<li><a href="#conclusion">Conclusion</a></li>
+<li><a href="#contact">Contact</a></li>
+</ul>
+
+    </div>
+  </div>
+  <div class="stackedit__right">
+    <div class="stackedit__html">
+      <h1 id="multitasking-with-arduino">Multitasking with Arduino</h1>
+<p>I have been searching the web to find multitasking libraries for Arduino AVR, but there wasn’t much available. I prefer something simple that is easy to use and understand, and not so automated that you don’t understand what is happening. It’s fine if it has some features, as long as they work independently and you can select what you want. The idea with this library is to implement a simple task switcher and see how it can be used. It is possible to add queues, locks, semaphores, scheduling, and a lot of other stuff, but that will be future development. This library is tested with Arduino Nano and ATmega4809. This multitasker works with small chips too, such as the Arduino Nano, but not with as many tasks. In most cases, it works with only 128 bytes of stack, and 4 tasks take up a total of 512 bytes of stack. My examples take 96 bytes of stack.</p>
+<p>In this tutorial, we will learn how to:</p>
+<ol>
+<li><strong>Create a new task.</strong></li>
+<li><strong>Manually switch between tasks.</strong></li>
+<li><strong>Return to the main task using the <code>yield()</code> function and understand the difference compared to procedures and methods.</strong></li>
+<li><strong>Ways to create and destroy a task, including tasks on the heap and on the stack.</strong></li>
+<li><strong>Implement multitasking with a task switcher.</strong></li>
+<li><strong>Use an alternative task for the task switcher instead of <code>main</code>.</strong></li>
+<li><strong>Optimize multitasking using <code>yield()</code> and <code>delay()</code>.</strong></li>
+<li><strong>Conclusion.</strong></li>
+<li><strong>Contact.</strong></li>
+</ol>
+<hr>
+<h1 id="create-a-new-task">Create a New Task</h1>
+<p>Let us see how to create a task with a 128-byte stack:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">"Multitasker.h"</span>                                </span><span class="token comment">// Include headers</span>
+
+<span class="token comment">// Define a specific task by inheriting from CreateSimpleTask and implementing the task() method</span>
+<span class="token keyword">class</span> <span class="token class-name">Task1</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateSimpleTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>             <span class="token comment">// Define Task1 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> task1<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task1 in global datasegment</span>
+
+<span class="token keyword">void</span> Task1<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task1 here</span>
+  <span class="token comment">// code</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p>We insert our code for the task in <code>void task() {}</code>.</p>
+<hr>
+<h1 id="manual-switch-between-tasks">Manual Switch Between Tasks</h1>
+<p>To show simple task switching, we create three tasks and do some manual task switching first.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">"Multitasker.h"</span>                                </span><span class="token comment">// Include headers</span>
+
+<span class="token keyword">auto</span><span class="token operator">&amp;</span> Stdout <span class="token operator">=</span> Serial<span class="token punctuation">;</span>                                  <span class="token comment">// Uses Serial as Stdout</span>
+
+<span class="token comment">// Define a specific task by inheriting from CreateSimpleTask and implementing the task() method</span>
+<span class="token keyword">class</span> <span class="token class-name">Task1</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateSimpleTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>             <span class="token comment">// Define Task1 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> task1<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task1</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task2</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateSimpleTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>             <span class="token comment">// Define Task2 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> task2<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task2</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task3</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateSimpleTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>             <span class="token comment">// Define Task3 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> task3<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task3</span>
+
+<span class="token keyword">void</span> Task1<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task1 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 selecting task 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  task2<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select task 2</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 selecting task 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  task3<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select task 3</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 1 finished. Selecting main"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">maintask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select main</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task2<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task2 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 selecting task 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  task3<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select task 3</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 2 finished. Selecting main"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">maintask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select main</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task3<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task3 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 selecting task 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  task2<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select task 2</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 3 finished. Selecting main"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">maintask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select main</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                          <span class="token comment">// Main program</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">115200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Initialize Print and wait</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span>Stdout<span class="token punctuation">)</span> Stdout<span class="token punctuation">.</span><span class="token function">flush</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main is running..."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                 <span class="token comment">// Main task is running</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main calls task1, 1. time"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select task 1</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main calls task1, 2. time"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select task 1</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main calls task1, 3. time"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select task 1</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main calls task1, 4. time"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select task 1</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main ended"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p><strong>Output:</strong></p>
+<pre><code>Main is running...
+Main calls task1, 1. time
+This is task 1
+This is task 1 selecting task 2
+This is task 2
+This is task 2 selecting task 3
+This is task 3
+This is task 3 selecting task 2
+Task 2 finished. Selecting main
+Main calls task1, 2. time
+This is task 1 selecting task 3
+Task 3 finished. Selecting main
+Main calls task1, 3. time
+Task 1 finished. Selecting main
+Main calls task1, 4. time
+This is task 1
+This is task 1 selecting task 2
+This is task 2
+This is task 2 selecting task 3
+This is task 3
+This is task 3 selecting task 2
+Task 2 finished. Selecting main
+Main ended
+</code></pre>
+<hr>
+<h1 id="return-to-main-task-using-yield-function">Return to Main Task Using <code>yield()</code> Function</h1>
+<p>Until now, we have not seen much we can’t do with function calls or methods. Using the <code>yield()</code> function, we get some real multitasking. We are now able to suspend a task, let it continue with other tasks, and go back to our task when the time has elapsed or an event has occurred. <code>yield()</code> is often also used in wait and delay loops, and luckily for us, there is a built-in <code>delay</code> function in the library.</p>
+<p>Let us take a very simple example using the <code>yield()</code> function:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">"Multitasker.h"</span>                                </span><span class="token comment">// Include headers</span>
+
+<span class="token keyword">auto</span><span class="token operator">&amp;</span> Stdout <span class="token operator">=</span> Serial<span class="token punctuation">;</span>                                  <span class="token comment">// Uses Serial as Stdout</span>
+
+<span class="token comment">// Define a specific task by inheriting from CreateTask and implementing the task() method</span>
+<span class="token keyword">class</span> <span class="token class-name">Task1</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task1 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> task1<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task1</span>
+
+<span class="token keyword">void</span> Task1<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task1 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// maintask() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// maintask() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// maintask() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// maintask() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 1 has finished, repeats"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>       <span class="token comment">// All threads repeats when they reach bottum</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                          <span class="token comment">// Main program</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">115200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Initialize Print and wait</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span>Stdout<span class="token punctuation">)</span> Stdout<span class="token punctuation">.</span><span class="token function">flush</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main running..."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                    <span class="token comment">// Main task is running</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main selects task1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Select task 1</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p><strong>Output:</strong></p>
+<pre><code>Main running...
+Main selects task1
+This is task 1 part 1
+Main selects task1
+This is task 1 part 2
+Main selects task1
+This is task 1 part 3
+Main selects task1
+This is task 1 part 4
+Main selects task1
+This is task 1 part 5
+Task 1 has finished, repeats
+This is task 1 part 1
+Main selects task1
+This is task 1 part 2
+Main selects task1
+This is task 1 part 3
+Main selects task1
+This is task 1 part 4
+Main selects task1
+This is task 1 part 5
+Task 1 has finished, repeats
+This is task 1 part 1
+Main selects task1
+This is task 1 part 2
+...
+</code></pre>
+<p>As we see, the <code>yield()</code> command lets us continue from where we left in task 1.</p>
+<hr>
+<h1 id="how-to-create-and-destroy-a-task">How to Create and Destroy a Task</h1>
+<p>The tasks are implemented as a normal class, and you might use class variables as well as local variables in the task.</p>
+<p>Typical the instance are placed in the global datasegment. This allows compiletime memory check. But there is no way to remove it.</p>
+<p>If you place the instance on the heap, you are able to remove it and might use the space for other purposes, but memory is not checked at compiletime.</p>
+<p>It is possible to place the instance on the stack as well, but it takes up a lot of space since it includes the stack for the task. The benefit is that it is easy to remove if you put it in a scope. If you create an instance on the stack, it is typically in the main task. However, it could also be done in another task, but you need to make sure there is enough stack space where you include the other task stored on the stack.</p>
+<p>Let us define two tasks:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">"Multitasker.h"</span>                                </span><span class="token comment">// Include headers</span>
+
+<span class="token keyword">auto</span><span class="token operator">&amp;</span> Stdout <span class="token operator">=</span> Serial<span class="token punctuation">;</span>                                  <span class="token comment">// Uses Serial as Stdout</span>
+
+<span class="token comment">// Define a specific task by inheriting from CreateTask and implementing the task() method</span>
+<span class="token keyword">class</span> <span class="token class-name">Task1</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task1 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Create an instance task1</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task2</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task2 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Create an instance task1</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> Task1<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task1 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// release to main task</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// release to main task</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// release to main task</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// release to main task</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 1 has finished, repeats"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>       <span class="token comment">// All threads repeats when they reach bottum</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task2<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task1 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// release to main task</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// release to main task</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// release to main task</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// release to main task</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// release to main task (extra)</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 2 has finished, repeats"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>       <span class="token comment">// All threads repeats when they reach bottum</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<ul>
+<li><strong>Creating Tasks Globally:</strong></li>
+</ul>
+<pre class=" language-cpp"><code class="prism  language-cpp">Task1 task1<span class="token punctuation">;</span>                                            <span class="token comment">// Place task1 in global datasegment. Compiletime memory check.</span>
+Task2 task2<span class="token punctuation">;</span>                                            <span class="token comment">// Place task2 in global datasegment. Compiletime memory check.</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                          <span class="token comment">// Main program</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">115200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Initialize Print and wait</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span>Stdout<span class="token punctuation">)</span> Stdout<span class="token punctuation">.</span><span class="token function">flush</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main running..."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                    <span class="token comment">// Main task is running</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 1 test:"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                       <span class="token comment">// Task 1 test</span>
+  <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token number">11</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>              <span class="token comment">// Select task 1, 11 times</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 2 test:"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                       <span class="token comment">// Task 2 test</span>
+  <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token number">11</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> task2<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>              <span class="token comment">// Select task 2, 11 times</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Program ended"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                      <span class="token comment">// End Program</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<ul>
+<li><strong>Creating Tasks on the Stack:</strong></li>
+</ul>
+<p>Remember that tasks created on the stack consume more space, as they include the stack for the task itself.</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                          <span class="token comment">// Main program</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">115200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Initialize Print and wait</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span>Stdout<span class="token punctuation">)</span> Stdout<span class="token punctuation">.</span><span class="token function">flush</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main running..."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                    <span class="token comment">// Main task is running</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 1 test:"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                       <span class="token comment">// Task 1 test</span>
+  <span class="token punctuation">{</span>                                                     <span class="token comment">// Start scope</span>
+    Task1 task1<span class="token punctuation">;</span>                                        <span class="token comment">//   Place Task1 on stack. No compiletime memory check.</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token number">11</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>            <span class="token comment">//   Select task 1, 11 times</span>
+  <span class="token punctuation">}</span>                                                     <span class="token comment">// End scope, Task 1 memory released</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 2 test:"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                       <span class="token comment">// Task 2 test</span>
+  <span class="token punctuation">{</span>                                                     <span class="token comment">// Start scope</span>
+    Task2 task2<span class="token punctuation">;</span>                                        <span class="token comment">//   Place Task2 on stack. No compiletime memory check.</span>
+    <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token number">11</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> task2<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>            <span class="token comment">//   Select task 2, 11 times</span>
+  <span class="token punctuation">}</span>                                                     <span class="token comment">// End scope, Task 2 memory released</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Program ended"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                      <span class="token comment">// End Program</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<ul>
+<li><strong>Creating Tasks on the Heap:</strong></li>
+</ul>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                          <span class="token comment">// Main program</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">115200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Initialize Print and wait</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span>Stdout<span class="token punctuation">)</span> Stdout<span class="token punctuation">.</span><span class="token function">flush</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main running..."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                    <span class="token comment">// Main task is running</span>
+
+  <span class="token comment">// Reserve memory for Task 1, switch to it, and release memory again</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 1 test:"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                       <span class="token comment">// Task 1 test</span>
+  Task1<span class="token operator">*</span> task1ptr <span class="token operator">=</span> <span class="token keyword">new</span> Task1<span class="token punctuation">;</span>                          <span class="token comment">// Allocate memory on heap for Task 1</span>
+  <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token number">11</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> task1ptr<span class="token operator">-</span><span class="token operator">&gt;</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>          <span class="token comment">// Select task 1, 11 times</span>
+  <span class="token keyword">delete</span> task1ptr<span class="token punctuation">;</span>                                      <span class="token comment">// Task 1 memory released</span>
+
+  <span class="token comment">// Reserve memory for Task 2, switch to it, and release memory again</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 2 test:"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                       <span class="token comment">// Task 2 test</span>
+  Task2<span class="token operator">*</span> task2ptr <span class="token operator">=</span> <span class="token keyword">new</span> Task2<span class="token punctuation">;</span>                          <span class="token comment">// Allocate memory on heap for Task 2</span>
+  <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token keyword">int</span> i <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">;</span> i <span class="token operator">&lt;</span> <span class="token number">11</span><span class="token punctuation">;</span> i<span class="token operator">++</span><span class="token punctuation">)</span> task2ptr<span class="token operator">-</span><span class="token operator">&gt;</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>          <span class="token comment">// Select task 2, 11 times</span>
+  <span class="token keyword">delete</span> task2ptr<span class="token punctuation">;</span>                                      <span class="token comment">// Task 2 memory released</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Program ended"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                      <span class="token comment">// End Program</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<hr>
+<h1 id="multitasking-with-a-task-switcherscheduler">Multitasking with a Task Switcher/Scheduler</h1>
+<p>A task switcher/scheduler is simple code that activates the tasks one by one. If you need more resources for a task, you simply switch to it more times in the task switcher loop, distributing the calls over the loop. A task switcher is the most efficient way to automatically switch between tasks, and it has its own stack, which makes it very efficient. In some cases, you might write your own code that decides which tasks are active and their execution order if you like to controle it.</p>
+<p>In most operating systems, there is not much control over which tasks are running. Instead, the <code>yield()</code> function is used in a loop that is suspended, and all tasks, even the suspended ones, are actually running. But since they release quickly after polling a port or checking time, only very few resources are used by the suspended tasks. Here, you have control yourself, and you can write code such as state machines that control which tasks run and in what order, use priority queues, or whatever you like. There are no limits to your creativity. Operating systems have a very simple way of handling it, and although they may contain more complicated functions such as priority queues, you are actually more constrained compared to coding everything yourself.</p>
+<p>Let us see an example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">"Multitasker.h"</span>                                </span><span class="token comment">// Include headers</span>
+
+<span class="token keyword">auto</span><span class="token operator">&amp;</span> Stdout <span class="token operator">=</span> Serial<span class="token punctuation">;</span>                                  <span class="token comment">// Uses Serial as Stdout</span>
+
+<span class="token comment">// Define a specific task by inheriting from CreateTask and implementing the task() method</span>
+<span class="token keyword">class</span> <span class="token class-name">Task1</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task1 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> task1<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task1</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task2</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task2 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> task2<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task2</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task3</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task3 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> task3<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task3</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task4</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task4 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> task4<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task4</span>
+
+<span class="token keyword">void</span> Task1<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task1 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 1 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task, but continue running yield()</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task2<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task2 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 2 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task3<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task3 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 3 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task4<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task4 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 4 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 4 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 4 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 4 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 4 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 4 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                          <span class="token comment">// Main program</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">115200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Initialize Print and wait</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span>Stdout<span class="token punctuation">)</span> Stdout<span class="token punctuation">.</span><span class="token function">flush</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main running..."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                    <span class="token comment">// Main task is running</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                           <span class="token comment">// Main task is scheduler, executing task 1,2,3,1,2,4 in loop. (Half time to task 3,4)</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Invoke time to task1</span>
+  task2<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Invoke time to task2</span>
+  task3<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Invoke time to task3</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Invoke double time to task 1</span>
+  task2<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// and double time to task 2</span>
+  task4<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Invoke time to task4</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p><strong>Output:</strong></p>
+<pre><code>Main running...
+This is task 1 part 1
+This is task 2 part 1
+This is task 3 part 1
+This is task 1 part 2
+This is task 2 part 2
+This is task 4 part 1
+This is task 1 part 3
+This is task 2 part 3
+This is task 3 part 2
+This is task 1 part 4
+This is task 2 part 4
+This is task 4 part 2
+This is task 1 part 5
+Task 1 has finished.
+This is task 2 part 5
+Task 2 has finished.
+This is task 3 part 3
+This is task 4 part 3
+This is task 3 part 4
+This is task 4 part 4
+This is task 3 part 5
+Task 3 has finished.
+This is task 4 part 5
+Task 4 has finished.
+</code></pre>
+<p>As we see, a task is divided into small parts, and <code>yield()</code> suspends the task and continues execution in another task.</p>
+<hr>
+<h1 id="alternative-task-for-task-switcher-instead-of-main">Alternative Task for Task Switcher Instead of <code>main</code></h1>
+<p>It is possible to use an alternative task as schedule the tasks instead of main task. Often main task might be needed for other purpose.<br>
+Let us see an example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">"Multitasker.h"</span>                                </span><span class="token comment">// Include headers</span>
+
+<span class="token keyword">auto</span><span class="token operator">&amp;</span> Stdout <span class="token operator">=</span> Serial<span class="token punctuation">;</span>                                  <span class="token comment">// Uses Serial as Stdout</span>
+
+<span class="token comment">// Define a specific task by inheriting from CreateTask and implementing the task() method</span>
+<span class="token keyword">class</span> <span class="token class-name">Multitasker</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>             <span class="token comment">// Task switcher running trough the tasks (Scheduler), 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> multitasker<span class="token punctuation">;</span>                                          <span class="token comment">// Create an instance multitask</span>
+
+
+<span class="token keyword">class</span> <span class="token class-name">Task1</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task1 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+  <span class="token keyword">void</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                <span class="token comment">// Overrides yield() funktion for Task1, executes task switcher</span>
+<span class="token punctuation">}</span> task1<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task1</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task2</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task2 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+  <span class="token keyword">void</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                <span class="token comment">// Overrides yield() funktion for Task2, executes task switcher</span>
+<span class="token punctuation">}</span> task2<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task2</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task3</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task3 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+  <span class="token keyword">void</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                <span class="token comment">// Overrides yield() funktion for Task3, executes task switcher</span>
+<span class="token punctuation">}</span> task3<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task3</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task4</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task4 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+  <span class="token keyword">void</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                <span class="token comment">// Overrides yield() funktion for Task4, executes task switcher</span>
+<span class="token punctuation">}</span> task4<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task4</span>
+
+
+<span class="token keyword">void</span> Task1<span class="token operator">::</span><span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                   <span class="token comment">// Implements yield() funktion for Task1</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                     <span class="token comment">// Execute task switcher</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task2<span class="token operator">::</span><span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                   <span class="token comment">// Implements yield() funktion for Task2</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                     <span class="token comment">// Execute task switcher</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task3<span class="token operator">::</span><span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                   <span class="token comment">// Implements yield() funktion for Task3</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                     <span class="token comment">// Execute task switcher</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task4<span class="token operator">::</span><span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                   <span class="token comment">// Implements yield() funktion for Task4</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                     <span class="token comment">// Execute task switcher</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task1<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task1 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 1 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 1 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task, but continue running yield()</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task2<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task2 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 2 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 2 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task3<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task3 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 3 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 3 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task4<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task4 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 4 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 4 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 4 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 4 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                              <span class="token comment">// yield() releases task, to be continued</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"This is task 4 part 5"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Task 4 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Multitasker<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                              <span class="token comment">// Code for multitasker/scheduler here, loops</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Invoke time to task1</span>
+  task2<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Invoke time to task2</span>
+  task3<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Invoke time to task3</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Invoke double time to task 1</span>
+  task2<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// and double time to task 2</span>
+  task4<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Invoke time to task4</span>
+  <span class="token function">maintask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Also time to main task</span>
+<span class="token punctuation">}</span>                                                       <span class="token comment">// A task always loops after finished</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                          <span class="token comment">// Main program</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">115200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Initialize Print and wait</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span>Stdout<span class="token punctuation">)</span> Stdout<span class="token punctuation">.</span><span class="token function">flush</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main running..."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                    <span class="token comment">// Main task is running</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main selects multitasker first time"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                     <span class="token comment">// Execute tasks until they are finished</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p><strong>Output:</strong></p>
+<pre><code>Main running...
+Main selects multitasker first time
+This is task 1 part 1
+This is task 2 part 1
+This is task 3 part 1
+This is task 1 part 2
+This is task 2 part 2
+This is task 4 part 1
+This is task 1 part 3
+This is task 2 part 3
+This is task 3 part 2
+This is task 1 part 4
+This is task 2 part 4
+This is task 4 part 2
+This is task 1 part 5
+Task 1 has finished.
+This is task 2 part 5
+Task 2 has finished.
+This is task 3 part 3
+This is task 4 part 3
+This is task 3 part 4
+This is task 4 part 4
+This is task 3 part 5
+Task 3 has finished.
+This is task 4 part 5
+Task 4 has finished.
+</code></pre>
+<hr>
+<h1 id="using-yield-and-delay-to-optimize-multitasking">Using <code>yield()</code> and <code>delay()</code> to Optimize Multitasking</h1>
+<p>The library has its own <code>delay</code> function that includes calling the <code>yield()</code> function. If you use delays, the time of the delay is used by other tasks. You can easily add message queues if you like, but remember to use <code>yield()</code> or <code>delay()</code> in the waiting loop. Then you allow the other tasks to receive or send messages to the task.</p>
+<p>Let us see an example:</p>
+<pre class=" language-cpp"><code class="prism  language-cpp"><span class="token macro property">#<span class="token directive keyword">include</span> <span class="token string">"Multitasker.h"</span>                                </span><span class="token comment">// Include headers</span>
+
+<span class="token keyword">auto</span><span class="token operator">&amp;</span> Stdout <span class="token operator">=</span> Serial<span class="token punctuation">;</span>                                  <span class="token comment">// Uses Serial as Stdout</span>
+
+<span class="token comment">// Define a specific task by inheriting from CreateTask and implementing the task() method</span>
+<span class="token keyword">class</span> <span class="token class-name">Multitasker</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>             <span class="token comment">// Task switcher running trough the tasks (Scheduler), 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+<span class="token punctuation">}</span> multitasker<span class="token punctuation">;</span>                                          <span class="token comment">// Create an instance multitask</span>
+
+
+<span class="token keyword">class</span> <span class="token class-name">Task1</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task1 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+  <span class="token keyword">void</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                <span class="token comment">// Overrides yield() funktion for Task1, executes task switcher</span>
+<span class="token punctuation">}</span> task1<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task1</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task2</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task2 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+  <span class="token keyword">void</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                <span class="token comment">// Overrides yield() funktion for Task3, executes task switcher</span>
+<span class="token punctuation">}</span> task2<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task3</span>
+
+<span class="token keyword">class</span> <span class="token class-name">Task3</span><span class="token operator">:</span> <span class="token keyword">public</span> CreateTask<span class="token operator">&lt;</span><span class="token number">128</span><span class="token operator">&gt;</span> <span class="token punctuation">{</span>                   <span class="token comment">// Define Task3 with 128 bytes stack</span>
+  <span class="token keyword">void</span> <span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                 <span class="token comment">// Overrides task()</span>
+  <span class="token keyword">void</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> override<span class="token punctuation">;</span>                                <span class="token comment">// Overrides yield() funktion for Task4, executes task switcher</span>
+<span class="token punctuation">}</span> task3<span class="token punctuation">;</span>                                                <span class="token comment">// Create an instance task4</span>
+
+
+<span class="token keyword">void</span> Task1<span class="token operator">::</span><span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                   <span class="token comment">// Implements yield() funktion for Task1</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                     <span class="token comment">// Execute task switcher</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task2<span class="token operator">::</span><span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                   <span class="token comment">// Implements yield() funktion for Task2</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                     <span class="token comment">// Execute task switcher</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task3<span class="token operator">::</span><span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                   <span class="token comment">// Implements yield() funktion for Task3</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                     <span class="token comment">// Execute task switcher</span>
+<span class="token punctuation">}</span>
+
+
+<span class="token keyword">void</span> Task1<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task1 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"0000 ms: This is task 1 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                          <span class="token comment">// delay(1000) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"1000 ms: This is task 1 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">2000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                          <span class="token comment">// delay(2000) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"3000 ms: This is task 1 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">3000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                          <span class="token comment">// delay(3000) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"6000 ms: This is task 1 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">4000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                          <span class="token comment">// delay(4000) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"10000ms: This is task 1 part 5, Task 1 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task</span>
+<span class="token punctuation">}</span>                                <span class="token comment">// Stop task</span>
+
+<span class="token keyword">void</span> Task2<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task2 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"0000 ms: This is task 2 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// delay(100) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"0200 ms: This is task 2 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// delay(100) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"0400 ms: This is task 2 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// delay(100) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"0600 ms: This is task 2 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// delay(100) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"0800 ms: This is task 2 part 5, task 2 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Task3<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                    <span class="token comment">// Code for task3 here</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"0000 ms: This is task 3 part 1"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                          <span class="token comment">// delay(1000) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"1000 ms: This is task 3 part 2"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                          <span class="token comment">// delay(1000) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"2000 ms: This is task 3 part 3"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                          <span class="token comment">// delay(1000) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"3000 ms: This is task 3 part 4"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token function">delay</span><span class="token punctuation">(</span><span class="token number">1000</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                          <span class="token comment">// delay(1000) releases task, other tasks runs</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"4000 ms: This is task 3 part 5, task 3 has finished."</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token boolean">true</span><span class="token punctuation">)</span> <span class="token function">yield</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Stop task</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">void</span> Multitasker<span class="token operator">::</span><span class="token function">task</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                              <span class="token comment">// Code for multitasker/scheduler here, loops</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Time to task1</span>
+  task2<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Time to task2</span>
+  task1<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Double time to task1</span>
+  task3<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Time to task3</span>
+  <span class="token function">maintask</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                           <span class="token comment">// Also give time to main task</span>
+<span class="token punctuation">}</span>                                                       <span class="token comment">// A thread always loops after finished</span>
+
+<span class="token keyword">void</span> <span class="token function">setup</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>                                          <span class="token comment">// Main program</span>
+  Stdout<span class="token punctuation">.</span><span class="token function">begin</span><span class="token punctuation">(</span><span class="token number">115200</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                 <span class="token comment">// Initialize Print and wait</span>
+  <span class="token keyword">while</span> <span class="token punctuation">(</span><span class="token operator">!</span>Stdout<span class="token punctuation">)</span> Stdout<span class="token punctuation">.</span><span class="token function">flush</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+  Stdout<span class="token punctuation">.</span><span class="token function">println</span><span class="token punctuation">(</span><span class="token string">"Main running...   Main selects tasker first time"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>   <span class="token comment">// Main task is running</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span><span class="token punctuation">;</span>
+
+<span class="token keyword">void</span> <span class="token function">loop</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+  multitasker<span class="token punctuation">.</span><span class="token function">go</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">;</span>                                     <span class="token comment">// Execute tasks until they are finished</span>
+<span class="token punctuation">}</span>
+</code></pre>
+<p><strong>Output:</strong></p>
+<pre><code>Main running...   Main selects tasker first time
+0000 ms: This is task 1 part 1
+0000 ms: This is task 2 part 1
+0000 ms: This is task 3 part 1
+0200 ms: This is task 2 part 2
+0400 ms: This is task 2 part 3
+0600 ms: This is task 2 part 4
+0800 ms: This is task 2 part 5, task 2 has finished.
+1000 ms: This is task 1 part 2
+1000 ms: This is task 3 part 2
+2000 ms: This is task 3 part 3
+3000 ms: This is task 1 part 3
+3000 ms: This is task 3 part 4
+4000 ms: This is task 3 part 5, task 3 has finished.
+6000 ms: This is task 1 part 4
+10000ms: This is task 1 part 5, Task 1 has finished.
+</code></pre>
+<p>As we see, the tasks are performed in an order determined by the delays. All delays start at the same time and run concurrently. When the time has elapsed, they continue. By adding <code>yield()</code> in any loop or where you need to wait (as is done in the <code>delay()</code> function), other tasks are performed while waiting.</p>
+<hr>
+<h1 id="conclusion">Conclusion</h1>
+<p>In this tutorial, we’ve explored how to implement simple multitasking on an Arduino using a custom task switcher. We began by creating new tasks and manually switching between them to understand the basics of task management. By introducing the <code>yield()</code> function, we achieved cooperative multitasking, allowing tasks to suspend and resume efficiently.</p>
+<p>We also discussed various methods for creating and destroying tasks, whether on the heap or the stack, highlighting the benefits and considerations of each approach. Implementing a task switcher or scheduler enabled us to automate task execution, improving efficiency and control over task prioritization.</p>
+<p>By using <code>yield()</code> and <code>delay()</code> strategically, we optimized multitasking to ensure that tasks run concurrently and processor time is utilized effectively. This approach allows for more responsive and efficient programs, even on resource-constrained devices like the Arduino Nano.</p>
+<p>Remember that multitasking on microcontrollers requires careful management of resources. Always monitor your memory usage and ensure that tasks are efficiently coded to prevent issues like stack overflows or resource conflicts. In the examples I use 128 bytes stack for tasks. With 96 bytes for the basic stuff, it leaves 32 butes free.</p>
+<p>By mastering these multitasking techniques, you can significantly enhance the capabilities of your Arduino projects and tackle more advanced challenges in embedded systems development.</p>
+<hr>
+<h1 id="contact">Contact</h1>
+<p>If you have any questions or feedback, feel free to reach out using the <a href="https://www.arduino.one/contact.html">contact form</a> on my site.</p>
+
+    </div>
+  </div>
+</body>
+
+</html>
