@@ -20,7 +20,7 @@
 //  below this line only !                                                                                                              //
 //  ----------------------------------------------------------------------------------------------------------------------------------  //
 //                                                                                                                                      //
-//  Testet on AVR architecture: Arduino Nano and ATMEGA4809.                                                                            //
+//  Tested on AVR architecture: Arduino Nano and ATMEGA4809.                                                                            //
 //                                                                                                                                      //
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -71,13 +71,13 @@ void setup() {                                                                  
 
   // Reserve memory for Task 1, switch to it, and release memory again
   Stdout.println("Task 1 test:");                                               // Task 1 test
-  Task1* task1ptr = new Task1;                                                  // Allocate memory on heap for Task 1
+  Task1 *task1ptr = new Task1;                                                  // Allocate memory on heap for Task 1
   for (int i = 0; i < 11; i++) task1ptr->go();                                  // Select task 1, 11 times
   delete task1ptr;                                                              // Task 1 memory released
 
   // Reserve memory for Task 2, switch to it, and release memory again
   Stdout.println("Task 2 test:");                                               // Task 2 test
-  Task2* task2ptr = new Task2;                                                  // Allocate memory on heap for Task 2
+  Task2 *task2ptr = new Task2;                                                  // Allocate memory on heap for Task 2
   for (int i = 0; i < 11; i++) task2ptr->go();                                  // Select task 2, 11 times
   delete task2ptr;                                                              // Task 2 memory released
 

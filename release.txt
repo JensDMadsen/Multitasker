@@ -1,0 +1,13 @@
+Multitasker 1.0.1
+
+Maintenance release.
+
+Changes:
+
+* Fixed constructor initializer order to remove compiler warnings.
+* Standardized pointer declaration formatting for improved readability.
+* Improved comments and corrected minor spelling/documentation issues.
+* Updated library description.
+
+No API changes.
+No functional changes.

@@ -22,7 +22,7 @@
 //  below this line only !                                                                                                              //
 //  ----------------------------------------------------------------------------------------------------------------------------------  //
 //                                                                                                                                      //
-//  Testet on AVR architecture: Arduino Nano and ATMEGA4809.                                                                            //
+//  Tested on AVR architecture: Arduino Nano and ATMEGA4809.                                                                            //
 //                                                                                                                                      //
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -31,8 +31,8 @@
 #include "Multitasker.h"                                                                                        // Include headers
 
 // Initialize static variables
-volatile uint8_t* volatile SimpleTask::msp;                                                                     // Instantiate main stack pointer
-SimpleTask* volatile SimpleTask::taskPtr = NULL;                                                                // Set running taskPtr to main
+volatile uint8_t *volatile SimpleTask::msp;                                                                     // Instantiate main stack pointer
+SimpleTask *volatile SimpleTask::taskPtr = NULL;                                                                // Set running taskPtr to main
 
 // Task tasksw(bool run) runs task if run is true, if run is false it leaves task and returns to main task
 void SimpleTask::tasksw(bool run) volatile {                                                                    // Taskswitcher, enables interrupts

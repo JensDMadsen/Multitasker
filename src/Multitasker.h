@@ -22,7 +22,7 @@
 //  below this line only !                                                                                                              //
 //  ----------------------------------------------------------------------------------------------------------------------------------  //
 //                                                                                                                                      //
-//  Testet on AVR architecture: Arduino Nano and ATMEGA4809.                                                                            //
+//  Tested on AVR architecture: Arduino Nano and ATMEGA4809.                                                                            //
 //                                                                                                                                      //
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -35,10 +35,10 @@
 
 
 class SimpleTask {                                                                                              // SimpleTask - simple task switching class.
-private:                                                                                                        // SimpleTask only contains fundemental task switching. Do not modify.
+private:                                                                                                        // SimpleTask only contains fundamental task switching. Do not modify.
   virtual void task() __attribute__((noinline)) = 0;                                                            // Implements the task, pure virtual
 protected:
-  SimpleTask(uint8_t *stack,uint16_t stacksize):tsp(stack+stacksize-1),newtask(true) {};                        // Constructor, setup stackpointer to end of stack, set newtask
+  SimpleTask(uint8_t *stack,uint16_t stacksize):newtask(true),tsp(stack+stacksize-1) {};                        // Constructor, newtask, setup stackpointer to end of stack
 public:
   void tasksw(bool run = true) volatile __attribute__((noinline));                                              // No inline accepted, needs call to return to swap to new task
   inline void go() __attribute__((always_inline))                                   { tasksw(true);           } // Activate task, short form, enables interrupt
@@ -48,14 +48,14 @@ public:
   static inline SimpleTask* runningTaskPtr() __attribute__((always_inline))         { return taskPtr;         } // Returns running task pointer, NULL if main is running
 private:                                                                                                        // Private, do not enter this region:
   volatile bool newtask;                                                                                        //   New task is started first time task switcher is activated
-  volatile uint8_t* volatile tsp;                                                                               //   Task stack pointer, volatile: stack data can be changed
-  static volatile uint8_t* volatile msp;                                                                        //   Main stack pointer, volatile: stack data can be changed
-  static SimpleTask* volatile taskPtr;                                                                          //   Pointer to running task, main if NULL
+  volatile uint8_t *volatile tsp;                                                                               //   Task stack pointer. Volatile because it is modified during task switching
+  static volatile uint8_t *volatile msp;                                                                        //   Main stack pointer. Volatile because it is modified during task switching
+  static SimpleTask *volatile taskPtr;                                                                          //   Pointer to running task, main if NULL
 };
 
 template<int STACK_SIZE>                                                                                        // Template to create a SimpleTask with stack
 class CreateSimpleTask: public SimpleTask {                                                                     // SimpleTask Class
-  uint8_t stack[STACK_SIZE];                                                                                    // Declaire space for stack
+  uint8_t stack[STACK_SIZE];                                                                                    // Declare space for stack
 public:
   CreateSimpleTask():SimpleTask(stack,sizeof(stack)) {}                                                         // Setup stack
 };
@@ -64,7 +64,7 @@ public:
 
 class Task: public SimpleTask {                                                                                 // Contains example of extended features, yield() and multitasking
 protected:                                                                                                      // You might extend it with more advanced features
-  Task(uint8_t *stack,uint16_t stacksize):SimpleTask(stack,stacksize) {};                                       // Constructor setups stack
+  Task(uint8_t *stack,uint16_t stacksize):SimpleTask(stack,stacksize) {};                                       // Constructor sets up stack
 public:
   virtual void yield()                                                              { maintask();             } // yield(), executes scheduler task, maintask() chosen default
   virtual void delay(uint16_t ms);                                                                              // delay(ms) suspends task in ms milliseconds and runs yield()
@@ -72,7 +72,7 @@ public:
 
 template<int STACK_SIZE>                                                                                        // Template to create a Task with stack
 class CreateTask: public Task {
-  uint8_t stack[STACK_SIZE];                                                                                    // Declaire space for stack
+  uint8_t stack[STACK_SIZE];                                                                                    // Declare space for stack
 public:
   CreateTask():Task(stack,sizeof(stack)) {}                                                                     // Setup stack
 };
